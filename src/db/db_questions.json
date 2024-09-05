@@ -1,0 +1,173 @@
+[
+    {
+        "key": "bot_name",
+        "question": "What would you like to name your bot",
+        "default": "b0t",
+        "regex": "^[a-zA-Z0-9_-]{3,15}$",
+        "type": "string"
+    },
+    {
+        "key": "debug_level",
+        "question": "What debug level would you like to set",
+        "default": "info",
+        "options": ["info", "debug", "warn", "error"],
+        "type": "string"
+    },
+    {
+        "key": "server_type",
+        "config_key": "servers",
+        "question": "Which platform is this server for",
+        "repeat_question": "Add another server",
+        "options": ["discord", "irc"],
+        "default": "irc",
+        "type": "string",
+        "repeatable": true,
+        "sub_questions": {
+            "discord": [
+                {
+                    "key": "token",
+                    "question": "Discord bot token",
+                    "regex": "^.{24,}$",
+                    "type": "string"
+                },
+                {
+                    "key": "server",
+                    "question": "Discord server name",
+                    "default": "my_discord_server",
+                    "regex": "^[a-zA-Z0-9_-]{3,30}$",
+                    "type": "string"
+                }
+            ],
+            "irc": [
+                {
+                    "key": "server",
+                    "question": "IRC server address",
+                    "default": "irc.freenode.net",
+                    "regex": "^[a-zA-Z0-9._-]+$",
+                    "type": "string"
+                },
+                {
+                    "key": "port",
+                    "question": "IRC server port",
+                    "default": 6667,
+                    "type": "number"
+                },
+                {
+                    "key": "ssl",
+                    "question": "Use SSL",
+                    "default": false,
+                    "type": "boolean"
+                },
+                {
+                    "key": "nickname",
+                    "question": "IRC bot nickname",
+                    "default": "b0t",
+                    "regex": "^[a-zA-Z0-9_-]{3,15}$",
+                    "type": "string"
+                },
+                {
+                    "key": "channels",
+                    "question": "List of channels to join",
+                    "default": "#chat, #general",
+                    "regex": "^#[a-zA-Z0-9_-]+$",
+                    "type": "array"
+                }
+            ]
+        }
+    },
+    {
+        "key": "migrate_old_repo",
+        "question": "Migrate an old v1 b0t repo?",
+        "type": "boolean",
+        "default": true,
+        "sub_questions": {
+            "true": [
+                {
+                    "key": "old_repo_path",
+                    "question": "Path to your old b0t repo",
+                    "default": "../b0t",
+                    "regex": "^([a-zA-Z]:)?(\\\\[a-zA-Z0-9_-]+)+\\\\?$|^([/.a-zA-Z0-9_-]+)+/?$",
+                    "type": "string",
+                    "sub_questions": {
+                        "any": [
+                            {
+                                "key": "migrate_all",
+                                "question": "Migrate all tables",
+                                "default": true,
+                                "type": "boolean",
+                                "pause_after": true,
+                                "sub_questions": {
+                                    "false": [
+                                        {
+                                            "key": "migrate_nicks",
+                                            "question": "Migrate the nicks table",
+                                            "default": true,
+                                            "type": "boolean",
+                                            "pause_after": true
+                                        },
+                                        {
+                                            "key": "migrate_bugs_requests",
+                                            "question": "Migrate the bugs & requests tables",
+                                            "default": true,
+                                            "type": "boolean",
+                                            "pause_after": true
+                                        },
+                                        {
+                                            "key": "migrate_speak",
+                                            "question": "Migrate the speak table",
+                                            "default": true,
+                                            "type": "boolean",
+                                            "pause_after": true
+                                        },
+                                        {
+                                            "key": "migrate_reminders",
+                                            "question": "Migrate the reminders table",
+                                            "default": false,
+                                            "type": "boolean",
+                                            "pause_after": true
+                                        },
+                                        {
+                                            "key": "migrate_kinkshame",
+                                            "question": "Migrate the kinkshame table",
+                                            "default": false,
+                                            "type": "boolean",
+                                            "pause_after": true
+                                        },
+                                        {
+                                            "key": "migrate_infobot",
+                                            "question": "DMigrate the infobot table",
+                                            "default": true,
+                                            "type": "boolean",
+                                            "pause_after": true
+                                        },
+                                        {
+                                            "key": "migrate_topics",
+                                            "question": "Migrate the topics table",
+                                            "default": true,
+                                            "type": "boolean",
+                                            "pause_after": true
+                                        },
+                                        {
+                                            "key": "migrate_polls",
+                                            "question": "Migrate the polls table",
+                                            "default": false,
+                                            "type": "boolean",
+                                            "pause_after": true
+                                        },
+                                        {
+                                            "key": "migrate_creeds",
+                                            "question": "Migrate the creeds table",
+                                            "default": true,
+                                            "type": "boolean",
+                                            "pause_after": true
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+]

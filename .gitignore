@@ -1,0 +1,5 @@
+node_modules
+logs
+db/b0t.db
+src/config/config.json
+src/db/db_config.json
