@@ -22,6 +22,7 @@
         "default": "irc",
         "type": "string",
         "repeatable": true,
+        "pause_after": "any",
         "sub_questions": {
             "discord": [
                 {
