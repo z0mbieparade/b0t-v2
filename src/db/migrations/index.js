@@ -11,8 +11,8 @@ const migrate_creeds = require('./creeds');
 
 const migrate_all_tables = async (config) =>
 {
-	await migrate_nicks(config);
-	// await migrate_bugs_requests(config);
+	// await migrate_nicks(config);
+	await migrate_bugs_requests(config);
 	// await migrate_speak(config);
 	// await migrate_kinkshame(config);
 	// await migrate_infobot(config);

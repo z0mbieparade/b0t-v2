@@ -1,3 +1,5 @@
+const get_logger = require('../../utils/logger');
+const log = get_logger('b0t', __filename, 'blue');
 const { Client, GatewayIntentBits } = require('discord.js');
 
 class DiscordBot
@@ -24,7 +26,7 @@ class DiscordBot
 	// Called when the bot is ready
 	onReady ()
 	{
-		global.logger.info(`Logged in as ${this.client.user.tag}!`, __filename);
+		log.info(`Logged in as ${this.client.user.tag}!`);
 	}
 
 	// Called when a new message is created
@@ -51,7 +53,7 @@ class DiscordBot
 	// Called when the bot joins a new guild (server)
 	onGuildJoin (guild)
 	{
-		global.logger.info(`Joined new server: ${guild.name}`, __filename);
+		log.info(`Joined new server: ${guild.name}`);
 	}
 
 	// Start the bot
@@ -60,7 +62,7 @@ class DiscordBot
 		// Login to Discord with the token
 		this.client.login(this.token).catch(err =>
 		{
-			global.logger.error('Failed to login to Discord:', err, __filename);
+			log.error('Failed to login to Discord:', err);
 		});
 	}
 }

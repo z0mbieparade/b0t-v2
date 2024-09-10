@@ -1,4 +1,13 @@
 
+
+
+CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT NOT NULL,
+    value TEXT,
+    UNIQUE(key)
+);
+
 CREATE TABLE IF NOT EXISTS servers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type TEXT NOT NULL,
@@ -12,26 +21,21 @@ CREATE TABLE IF NOT EXISTS servers (
 CREATE TABLE IF NOT EXISTS channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     server_id INTEGER,
-    name TEXT NOT NULL,  -- Channel name or Discord server name
-    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+    channel TEXT NOT NULL,  
+    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE,
+    UNIQUE(server_id, channel)
 );
 
+-- there could be an issue where two users use the same nickname on the same server??
 CREATE TABLE IF NOT EXISTS nicks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nick TEXT UNIQUE NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS nick_associate (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nick_id INTEGER,
     server_id INTEGER,
-    channel_id INTEGER,
-    FOREIGN KEY (nick_id) REFERENCES nicks(id) ON DELETE CASCADE,
-    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE,
-    FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE,
-    UNIQUE(nick_id, server_id, channel_id)
+    nick TEXT UNIQUE NOT NULL,
+    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+    UNIQUE(nick, server_id)
 );
 
+-- link to another nickname on another server
 CREATE TABLE IF NOT EXISTS nick_link (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nick_id_1 INTEGER,
@@ -41,14 +45,16 @@ CREATE TABLE IF NOT EXISTS nick_link (
     UNIQUE(nick_id_1, nick_id_2)
 );
 
+-- alias of nickname on same server
 CREATE TABLE IF NOT EXISTS nick_alias (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nick TEXT UNIQUE NOT NULL,
+    alias TEXT UNIQUE NOT NULL,
     nick_id INTEGER,
     FOREIGN KEY (nick_id) REFERENCES nicks(id) ON DELETE CASCADE,
-    UNIQUE(nick_id, nick)
+    UNIQUE(nick_id, alias)
 );
 
+-- key:value table of any extra user data
 CREATE TABLE IF NOT EXISTS nick_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nick_id INTEGER,
@@ -58,6 +64,7 @@ CREATE TABLE IF NOT EXISTS nick_data (
     UNIQUE(nick_id, key)
 );
 
+-- these are tag lines that are said when the user enters the channel
 CREATE TABLE IF NOT EXISTS nick_tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nick_id INTEGER,
@@ -65,6 +72,7 @@ CREATE TABLE IF NOT EXISTS nick_tags (
     FOREIGN KEY (nick_id) REFERENCES nicks(id) ON DELETE CASCADE
 );
 
+-- when a user was last seen
 CREATE TABLE IF NOT EXISTS nick_seen (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nick_id INTEGER,
@@ -75,6 +83,15 @@ CREATE TABLE IF NOT EXISTS nick_seen (
     FOREIGN KEY (nick_id) REFERENCES nicks(id) ON DELETE CASCADE
 );
 
+-- keep track of various ips a user has joined from
+CREATE TABLE IF NOT EXISTS nick_ips (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nick_id INTEGER,
+    ip_address TEXT,
+    FOREIGN KEY (nick_id) REFERENCES nicks(id) ON DELETE CASCADE
+);
+
+-- when a user last spoke
 CREATE TABLE IF NOT EXISTS nick_spoken (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nick_id INTEGER,

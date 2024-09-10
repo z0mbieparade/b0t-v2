@@ -1,6 +1,8 @@
+const get_logger = require('../../utils/logger');
+const log = get_logger('b0t', __filename);
 const fs = require('fs');
 const path = require('path');
-const { run_query } = require('../db');
+const db = require('../db');
 const {
 	get_repo_base_path
 } = require('../../utils/func');
@@ -23,15 +25,15 @@ const migrate_bugs_requests = async (current_config) =>
 
 		if (!bugs && !requests)
 		{
-			global.logger.info('No ' + table_name + ' to migrate.', __filename);
+			log.info('No ' + table_name + ' to migrate.');
 			return;
 		}
 
-		global.logger.info(table_name + ' migration completed successfully.', __filename);
+		log.info(table_name + ' migration completed successfully.');
 	}
 	catch (error)
 	{
-		global.logger.error('Error during ' + table_name + ' migration:', error, __filename);
+		log.error('Error during ' + table_name + ' migration:', error);
 		throw error;
 	}
 };

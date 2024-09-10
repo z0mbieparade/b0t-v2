@@ -1,3 +1,5 @@
+const get_logger = require('../../utils/logger');
+const log = get_logger('b0t', __filename, 'purple');
 const net = require('net');
 const tls = require('tls');
 const EventEmitter = require('events');
@@ -40,7 +42,7 @@ class IRCBot extends EventEmitter
 	{
 		if (this.retry_count >= this.config.max_retries)
 		{
-			global.logger.error(`Failed to connect to ${this.config.server} after ${this.retry_count} attempts. Shutting down.`, __filename);
+			log.error(`Failed to connect to ${this.config.server} after ${this.retry_count} attempts. Shutting down.`);
 			this.emit('shutdown'); // Emit shutdown event for this specific server
 			return;
 		}
@@ -148,11 +150,11 @@ class IRCBot extends EventEmitter
 	// Handle connection errors
 	handle_error (err)
 	{
-		global.logger.error(`IRC bot error on ${this.config.server}:`, err.message, __filename);
+		log.error(`IRC bot error on ${this.config.server}:`, err.message);
 		this.retry_count++; // Increment retry count on error
 		if (this.retry_count >= this.config.max_retries)
 		{
-			global.logger.error(`Failed to connect after ${this.retry_count} attempts. Shutting down.`, __filename);
+			log.error(`Failed to connect after ${this.retry_count} attempts. Shutting down.`);
 			this.emit('shutdown'); // Emit shutdown event for this specific server
 			return;
 		}
@@ -179,7 +181,7 @@ class IRCBot extends EventEmitter
 		}
 		else
 		{
-			global.logger.error('Cannot send command, not connected.', __filename);
+			log.error('Cannot send command, not connected.');
 		}
 	}
 

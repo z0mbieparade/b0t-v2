@@ -1,3 +1,6 @@
+const get_logger = require('../utils/logger');
+const log = get_logger('b0t', __filename, 'lime');
+const { colorize_string } = require('../utils/color');
 const fs = require('fs');
 const readline = require('readline');
 
@@ -26,132 +29,164 @@ const validate_input = (input, regex, options) =>
 // Function to process and validate inputs based on type and options/regex
 const process_input = (input, type, regex, options) =>
 {
-	switch (type)
+	try
 	{
-		case 'boolean':
-			if(input === true) return true;
-			if(input === false) return false;
-			return ['yes', 'y', 'true'].includes(input.toLowerCase());
-		case 'number':
-			return validate_input(input, regex) ? parseInt(input, 10) : NaN;
-		case 'array':
-			return input.split(',').map(item => item.trim());
-		default:
-			return validate_input(input, regex, options) ? input : null;
-	}
-};
-
-// Function to check if we need to pause after a question based on the `pause_after` value
-const should_pause = (pause_after, answer) =>
-{
-	if (!pause_after) return false;
-	if (pause_after === 'any') return true;
-	if (Array.isArray(pause_after)) return pause_after.includes(answer);
-	return pause_after === answer;
-};
-
-// Function to format the question text with options and default values
-const format_question_text = (question, options, default_value) =>
-{
-	let formatted_question = question;
-	if (options) formatted_question += ` (options: ${options.join(', ')})`;
-	if (default_value !== undefined) formatted_question += ` (default: ${default_value})`;
-	return `${formatted_question}: `;
-};
-
-// Function to ask a single question and process the input
-const ask_single_question = (question, current_config, key, after_question_callbacks) =>
-{
-	return new Promise((resolve) =>
-	{
-		const formatted_question = format_question_text(question.question, question.options, question.default);
-
-
-		rl.question(formatted_question, (answer) =>
+		switch (type)
 		{
-			const final_answer = answer || question.default;
-			const processed_answer = process_input(final_answer, question.type, question.regex, question.options);
-
-			if (processed_answer !== null)
-			{
-				current_config[key] = processed_answer;
-
-				console.log(`\x1b[32m${processed_answer}\x1b[0m`);
-				console.log('');
-
-				if (should_pause(question.pause_after, processed_answer) && after_question_callbacks[key])
+			case 'boolean':
+				if(input === true || input === 1) return true;
+				if(input === false || input === 0) return false;
+				return ['yes', 'y', 'true', '1'].includes(input.toLowerCase());
+			case 'number':
+				return validate_input(input, regex) ? parseInt(input, 10) : NaN;
+			case 'array':
+				let arr = [];
+				if(Array.isArray(input))
 				{
-					const callback_result = after_question_callbacks[key](processed_answer, current_config);
-
-					if (callback_result instanceof Promise)
-					{
-						callback_result.then(resolve).catch(err =>
-						{
-							global.logger.error(`Error in after_question_callbacks for ${key}:`, err, __filename);
-							resolve();
-						});
-					}
-					else
-					{
-						resolve();
-					}
+					arr = input;
 				}
 				else
 				{
-					resolve();
+					arr = input.split(',');
+				}
+
+				return arr.map((item) => typeof item === 'string' ? item.trim() : item)
+					.filter((item) => validate_input(item, regex));
+
+			default:
+				return validate_input(input, regex, options) ? input : null;
+		}
+	}
+	catch(error)
+	{
+		log.error('process_input failed!', { input, type, regex, options, error });
+		return input;
+	}
+};
+
+// Function to format the question text with options and default values
+const format_question_text = (question, options, default_value, edit_existing_data) =>
+{
+	let formatted_question = question;
+	if (options) formatted_question += colorize_string(` (options: ${options.join(', ')})`, 'yellow');
+	if (default_value !== undefined)
+	{
+		formatted_question += edit_existing_data ? colorize_string(` (current: ${default_value})`, 'green') : colorize_string(` (default: ${default_value})`, 'gray');
+	}
+	return `${formatted_question}: `;
+};
+
+// Helper function to use async/await with readline question
+const ask_question = (query) =>
+{
+	return new Promise((resolve) => rl.question(query, resolve));
+};
+
+// Function to ask a single question and process the input
+const ask_single_question = async (question, current_config, key, edit_existing_data) =>
+{
+	log.info('Single Question:', { key, edit_existing_data, question, current_config });
+
+	let existing_data = edit_existing_data ? current_config : false;
+	let q_default = existing_data && existing_data[key] ? existing_data[key] : question.default;
+	if(question.get_data)
+	{
+		existing_data = await question.get_data();
+		if(existing_data[key] !== undefined)
+		{
+			edit_existing_data = true;
+			q_default = existing_data[key];
+		}
+	}
+
+	const processed_default = process_input(q_default, question.type, question.regex, question.options);
+	const formatted_question = format_question_text(question.question, question.options, processed_default, edit_existing_data);
+	const answer = await ask_question(formatted_question);
+	const final_answer = answer || processed_default;
+	const processed_answer = process_input(final_answer, question.type, question.regex, question.options);
+
+	if (processed_answer !== null)
+	{
+		current_config[key] = processed_answer;
+		if(existing_data) existing_data[key] = processed_answer;
+
+		console.log(colorize_string(processed_answer, 'lime'));
+		console.log('');
+
+		if (question.repeatable !== true)
+		{
+			let func = existing_data ? 'update' : 'insert';
+			func = question[func] ? func : 'upsert';
+
+			if(question[func])
+			{
+				log.debug(`Single Question.${func}()`, { processed_answer });
+
+				try
+				{
+					await question[func](processed_answer);
+				}
+				catch (err)
+				{
+					log.error(`Error in ${key}.${func}():`, err);
 				}
 			}
-			else
-			{
-				global.logger.warn(`Invalid input for ${key}: ${final_answer}`, __filename);
-				ask_single_question(question, current_config, key, after_question_callbacks).then(resolve);
-			}
-		});
-	});
+		}
+	}
+	else
+	{
+		log.warn(`Invalid input for ${key}: ${final_answer}`);
+		return ask_single_question(question, current_config, key);
+	}
 };
 
 // Function to ask the same question or subquestions until a user says no to another entry
-const ask_repeatable_question = (question, current_config, key, after_question_callbacks) =>
+const ask_repeatable_question = async (question, current_config, key) =>
 {
+	log.debug('Repeatable question:', { key, question, current_config });
+
 	const results = [];
 
-	const ask_sub_questions_and_repeat = async (entry) =>
+	const ask_sub_questions_and_repeat = async (entry, edit_existing_data) =>
 	{
-		const sub_questions = question.sub_questions[entry[question.key]] || question.sub_questions['any'];
+		const sub_questions = question.sub_questions[entry[question.key]] || question.sub_questions.any;
+
+		log.debug('ask_sub_questions_and_repeat:', { entry, sub_questions });
 
 		if (sub_questions)
 		{
-			await ask_questions(sub_questions, entry, after_question_callbacks);
-
+			await ask_questions(sub_questions, entry, edit_existing_data);
 			const processed_answer = process_input(entry, question.type, question.regex, question.options);
 
-			if (should_pause(question.pause_after, processed_answer))
+			let func = edit_existing_data ? 'update' : 'insert';
+			func = question[func] ? func : 'upsert';
+
+			if(question[func])
 			{
-				if (after_question_callbacks && after_question_callbacks[key])
+				log.debug(`Sub Question.${func}()`, { processed_answer });
+
+				try
 				{
-					await after_question_callbacks[key](entry, current_config);  // Await callback handling
+					await question[func](entry, current_config);
+				}
+				catch (err)
+				{
+					log.error(`Error in ${key}.${func}():`, err);
 				}
 			}
 
-			const answer = await new Promise((resolve) =>
-			{
-				rl.question(`${question.repeat_question || 'Add another entry'} (options: yes/no) (default: no): `, resolve);
-			});
+			const answer = await ask_question(`${question.repeat_question || 'Add another entry'} (options: yes/no) (default: no): `);
 
-			if (['yes', 'y'].includes(answer.toLowerCase()))
+			if (['yes', 'y', '1', 'true'].includes(answer.toLowerCase()) || [true, 1].includes(answer))
 			{
-
-				console.log('\x1b[32myes\x1b[0m');
+				console.log(colorize_string('yes', 'lime'));
 				console.log('');
-
 				return ask_main_question({});  // Recursively ask more entries
 			}
 			else
 			{
-
-				console.log('\x1b[32mno\x1b[0m');
+				console.log(colorize_string('no', 'red'));
 				console.log('');
-
 				results.push(entry);
 				current_config[key] = results;
 				return;
@@ -165,60 +200,194 @@ const ask_repeatable_question = (question, current_config, key, after_question_c
 		}
 	};
 
-	const ask_main_question = (entry) =>
+	// Handle edit or add options for existing data
+	const edit_or_add_options = async (existing_data) =>
 	{
-		return ask_single_question(question, entry, question.key, after_question_callbacks)
-			.then(() => ask_sub_questions_and_repeat(entry));
+		log.debug('Existing data:', existing_data);
+
+		if(Array.isArray(existing_data))
+		{
+			let options = question.existing_question || 'Choose an option';
+			options += ': \n1 - Edit a row \n2 - Delete a row \n3 - Add a new row \n4 - Skip and continue';
+			const answer = await ask_question(`${options} (default: 3): `);
+			const choice = parseInt(answer, 10);
+
+			if (choice === 1) // Edit a row
+			{
+				existing_data.forEach((row, i) =>
+				{
+					let row_str = '';
+					for(const key in row)
+					{
+						if(key === 'id' || row[key] === null || row[key] === '') continue;
+						row_str += key + ':' + row[key] + ' ';
+					}
+					console.log(colorize_string(`${(i + 1)}) ${row_str}`, 'yellow'));
+				});
+
+				const row_to_edit = await ask_question(`Enter row number to edit (1-${existing_data.length}): `);
+				const index = parseInt(row_to_edit, 10) - 1;
+				if (index >= 0 && index < existing_data.length)
+				{
+					log.debug('Edit row:', { index, row: existing_data[index], question });
+
+					await ask_single_question(question, existing_data[index], question.key, true); // Ask main question
+					await ask_sub_questions_and_repeat(existing_data[index], true);  // Ask sub-questions for the row
+				}
+				else
+				{
+					console.log(colorize_string('Invalid row number.', 'red'));
+				}
+			}
+			else if (choice === 2) // Delete an existing row
+			{
+				existing_data.forEach((row, i) =>
+				{
+					let row_str = '';
+					for(const key in row)
+					{
+						if(key === 'id' || row[key] === null || row[key] === '') continue;
+						row_str += key + ':' + row[key] + ' ';
+					}
+
+					console.log(colorize_string(`${(i + 1)}) ${row_str}`, 'yellow'));
+				});
+
+				const row_to_delete = await ask_question(`Enter row number to delete (1-${existing_data.length}): `);
+				const index = parseInt(row_to_delete, 10) - 1;
+				if (index >= 0 && index < existing_data.length)
+				{
+					log.debug('Delete row:', { index, row: existing_data[index], question });
+					const delete_row = await ask_question(`Are you sure you want to delete row ${(index + 1)}? (default: no): `);
+
+					if (['yes', 'y', '1', 'true'].includes(delete_row.toLowerCase()) || [true, 1].includes(delete_row))
+					{
+						if(question.delete)
+						{
+							log.debug('Question.delete()', { index, existing_data });
+
+							try
+							{
+								log.debug('Question.delete()');
+								await question.delete(existing_data[index]);
+								console.log(colorize_string(`Delete row: ${(index + 1)}`, 'lime'));
+								await edit_or_add_options(existing_data); //return to our choices
+							}
+							catch (err)
+							{
+								log.error(`Error in ${key}.delete():`, err);
+							}
+						}
+						else
+						{
+							log.error('No delete function for question', question);
+							await edit_or_add_options(existing_data); //return to our choices
+						}
+					}
+					else
+					{
+						await edit_or_add_options(existing_data); //return to our choices
+					}
+				}
+				else
+				{
+					console.log(colorize_string('Invalid row number.', 'red'));
+					await edit_or_add_options(existing_data); //return to our choices
+				}
+			}
+			else if (choice === 3) // Add a new row
+			{
+				await ask_main_question({}); // Ask for a new row
+			}
+			// If choice is 4 or invalid, we skip
+		}
+		else if(typeof existing_data === 'object' && existing_data !== null && existing_data !== undefined)
+		{
+			//idk do something if it's just a {key: data} object
+		}
 	};
 
-	return ask_main_question({});
+	const ask_main_question = async (entry) =>
+	{
+		log.debug('ask_main_question:', { entry });
+
+		if(question.get_data)
+		{
+			const existing_data = await question.get_data(current_config);
+
+			if(existing_data && existing_data[question.key])
+			{
+				await edit_or_add_options(existing_data);
+			}
+		}
+		else
+		{
+			await ask_single_question(question, entry, question.key);
+			await ask_sub_questions_and_repeat(entry);
+		}
+	};
+
+	if(question.get_data_all)
+	{
+		const existing_data = await question.get_data_all(current_config);
+
+		if (Array.isArray(existing_data) && existing_data.length > 0)
+		{
+			await edit_or_add_options(existing_data);
+		}
+		else
+		{
+			await ask_main_question({});
+		}
+	}
+	else
+	{
+		await ask_main_question({});
+	}
 };
 
 // Main function to ask questions dynamically, handling sub-questions and repeatable questions
-const ask_questions = (questions, current_config, after_question_callbacks) =>
+const ask_questions = async (questions, current_config, edit_existing_data) =>
 {
-	return questions.reduce((promiseChain, question, i) =>
+	log.debug('ask_questions:', { edit_existing_data, questions, current_config });
+
+	for (const key in questions)
 	{
-		return promiseChain.then(() =>
+		const question = questions[key];
+		const q_key = question.key || key;
+		if (question.repeatable)
 		{
-			if (question.repeatable)
+			await ask_repeatable_question(question, current_config, q_key);
+		}
+		else
+		{
+			await ask_single_question(question, current_config, q_key, edit_existing_data);
+
+			if (question.sub_questions && current_config[q_key])
 			{
-				const repeat_key = question.config_key || (question.key + 's');
-				return ask_repeatable_question(question, current_config, repeat_key, after_question_callbacks);
+				const sub_questions_key = current_config[q_key];
+				const sub_questions = question.sub_questions[sub_questions_key] || question.sub_questions.any;
+
+				if (sub_questions)
+				{
+					await ask_questions(sub_questions, current_config);
+				}
 			}
-			else
-			{
-				return ask_single_question(question, current_config, question.config_key || question.key, after_question_callbacks)
-					.then(() =>
-					{
-						if (question.sub_questions && current_config[question.key])
-						{
-							const sub_questions_key = current_config[question.key];
-							const sub_questions = question.sub_questions[sub_questions_key] || question.sub_questions['any'];
-							if (sub_questions)
-							{
-								return ask_questions(sub_questions, current_config, after_question_callbacks);
-							}
-						}
-					});
-			}
-		});
-	}, Promise.resolve());
+		}
+	}
 };
 
 // Function to run the setup based on a question set
-const setup_config = (questions_path, after_question_callbacks = {}) =>
+const start = async (questions = {}) =>
 {
-	const questions = JSON.parse(fs.readFileSync(questions_path, 'utf-8'));
 	const config = {};
 
-	return ask_questions(questions, config, after_question_callbacks)
-		.then(() =>
-		{
-			rl.close();
-			return config;
-		});
+	await ask_questions(questions, config);
+	rl.close();
+	return config;
 };
 
 // Export the setup function
-module.exports = setup_config;
+module.exports = {
+	start
+};

@@ -1,19 +1,40 @@
 const winston = require('winston');
 require('winston-daily-rotate-file');
 const path = require('path');
+const { colorize_string } = require('./color');
 
-// Function to check if a string is a valid filename
+const colorize_by_level = (level, str) =>
+{
+	let color = 'green';
+	switch(level)
+	{
+		case 'debug':
+			color = 'blue';
+			break;
+		case 'warn':
+			color = 'orange';
+			break;
+		case 'error':
+			color = 'red';
+			break;
+		default:
+			color = 'green';
+			break;
+	}
+
+	return colorize_string(str, color);
+};
+
+// Check if a string is a valid filename
 const is_valid_filename = (str) =>
 {
 	if(!str || str === undefined || str === null) return false;
-
-	const filename = path.basename(str);
-	const filename_regex = /^[\w,\s-]+\.[A-Za-z]{2,4}$/;
-	return filename_regex.test(filename);
+	const filename_regex = /^.+\.[A-Za-z]{2,4}$/;
+	return filename_regex.test(str);
 };
 
 // Custom formatter to handle objects and multiple arguments for file logs
-const format_message_for_file = winston.format.printf(({ timestamp, level, message, metadata, filename }) =>
+const format_message_for_file = (filename_color) => winston.format.printf(({ timestamp, level, message, metadata, filename }) =>
 {
 	let formatted_message = '';
 
@@ -38,7 +59,7 @@ const format_message_for_file = winston.format.printf(({ timestamp, level, messa
 });
 
 // Custom formatter to log objects directly to the console and handle multiple values
-const format_message_for_console = winston.format.printf(({ timestamp, level, message, metadata, filename }) =>
+const format_message_for_console = (filename_color) => winston.format.printf(({ timestamp, level, message, metadata, filename }) =>
 {
 	let formatted_message = '';
 
@@ -63,12 +84,13 @@ const format_message_for_console = winston.format.printf(({ timestamp, level, me
 
 	// If filename is valid, include it; otherwise, treat as a normal message
 	const filename_part = is_valid_filename(filename) ? `[${path.basename(filename)}]` : '';
-	const final_message = `${timestamp} [${level.toUpperCase()}]${filename_part}: ${formatted_message}`;
-	return winston.format.colorize().colorize(level, final_message);  // Colorize the entire line
+	const colored_filename = filename_part ? colorize_string(filename_part, filename_color) : '';
+
+	return colorize_by_level(level, `${timestamp} [${level.toUpperCase()}]`) + colored_filename + colorize_by_level(level, `: ${formatted_message}`);
 });
 
 // Create logger based on log type and log name
-const create_logger = (log_type, log_name, debug_level = 'debug') =>
+const create_logger = (log_name, filename_color = 'white', debug_level = 'debug') =>
 {
 	return winston.createLogger({
 		level: debug_level,
@@ -81,7 +103,7 @@ const create_logger = (log_type, log_name, debug_level = 'debug') =>
 			new winston.transports.Console({
 				format: winston.format.combine(
 					winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),  // Add timestamp for console
-					format_message_for_console // Use custom formatter for console
+					format_message_for_console(filename_color) // Use custom formatter for console
 				)
 			}),
 			// Daily rotated file transport without colorization
@@ -93,57 +115,33 @@ const create_logger = (log_type, log_name, debug_level = 'debug') =>
 				maxFiles: '14d',  // Retain logs for 14 days
 				format: winston.format.combine(
 					winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),  // Add timestamp for file logs
-					format_message_for_file // Use custom formatter for file logs
+					format_message_for_file(filename_color) // Use custom formatter for file logs
 				)
 			})
 		]
 	});
 };
 
-// Logger for bot's main operations
-const bot_logger = create_logger('bot', 'b0t');
-
-// Logger for server-specific events
-const get_server_logger = (server_name, debug_level = 'debug') =>
+const get_logger = (log_name, filename, filename_color = 'white', debug_level = 'debug') =>
 {
-	return create_logger('server', server_name, debug_level);
-};
+	const logger = create_logger(log_name, filename_color, debug_level);
 
-// Logger for channel-specific events, including DMs and PMs
-const get_channel_logger = (server_name, channel_name, debug_level = 'debug') =>
-{
-	return create_logger('channel', `${server_name}-${channel_name}`, debug_level);
-};
-
-// Function to set logging methods dynamically on global.logger
-const set_global_logger_methods = (logger) =>
-{
 	['info', 'debug', 'error', 'warn'].forEach((level) =>
 	{
-		global.logger[level] = (...args) =>
+		const original_log_method = logger[level];
+		logger[level] = (...args) =>
 		{
-			const last_argument = args.pop();
-			const filename = is_valid_filename(last_argument) ? last_argument : null;
-			const message = filename ? args : [...args, last_argument];
-
-			logger.log({
+			const message = args.length > 1 ? args : args[0];
+			original_log_method({
 				level,
 				message,
 				filename
 			});
 		};
 	});
+
+	return logger;
 };
-
-global.logger = bot_logger;
-set_global_logger_methods(global.logger);
-
-global.get_server_logger = get_server_logger;
-global.get_channel_logger = get_channel_logger;
 
 // Export the loggers
-module.exports = {
-	bot_logger,
-	get_server_logger,
-	get_channel_logger,
-};
+module.exports = get_logger;
