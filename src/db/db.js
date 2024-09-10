@@ -1,6 +1,8 @@
-const sqlite3 = require('sqlite3').verbose();
+const sqlite = require('sqlite');
+const sqlite3 = require('sqlite3');  // Using sqlite3 driver
 const path = require('path');
 const fs = require('fs');
+
 const db_path = path.join(__dirname, '../../db/b0t.db');
 const schema_path = path.join(__dirname, '../../db/schema.sql');
 
@@ -10,135 +12,120 @@ if (!fs.existsSync(path.dirname(db_path)))
 	fs.mkdirSync(path.dirname(db_path), { recursive: true });
 }
 
-// Open or create the database
-const db = new sqlite3.Database(db_path, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) =>
-{
-	if (err && err.code == 'SQLITE_CANTOPEN')
-	{
-		global.logger.error('Error connecting to SQLite database, attempting to create.');
-		apply_schema();
-	}
-	else if (err)
-	{
-		global.logger.error('Error connecting to SQLite database:', err.message);
-		throw err;
-	}
-	else
-	{
-		global.logger.info('Connected to the SQLite database.');
-	}
-});
+let db;
+let db_created = false; // To let b0t.js know if the db was created
 
 // Function to execute the SQL schema
-const apply_schema = (callback) =>
+const apply_schema = async () =>
 {
 	const schema_sql = fs.readFileSync(schema_path, 'utf-8');
-
-	db.exec(schema_sql, (err) =>
+	try
 	{
-		if (err)
+		await db.exec(schema_sql);
+		global.logger.info('Schema applied successfully.', __filename);
+	}
+	catch (err)
+	{
+		global.logger.error('Error applying schema:', err.message, __filename);
+		throw err;
+	}
+};
+
+// Function to initialize the database and apply schema
+const initialize_db = async () =>
+{
+	const db_exists = fs.existsSync(db_path);
+
+	try
+	{
+		db = await sqlite.open({
+			filename: db_path,
+			driver: sqlite3.Database
+		});
+
+		global.logger.info('Connected to SQLite database.', __filename);
+
+		if (!db_exists)
 		{
-			global.logger.error('Error applying schema:', err.message);
-			return callback(err);
+			global.logger.info('Database does not exist. Creating and applying schema...', __filename);
+			db_created = true;
 		}
-		global.logger.info('Schema applied successfully.');
-		callback();
-	});
+
+		await apply_schema();  // Ensure schema is applied on every startup
+	}
+	catch (err)
+	{
+		global.logger.error('Error connecting to SQLite database:', err.message, __filename);
+		throw err;
+	}
 };
 
 // General query runner for other modules to use
-const run_query = (query, params = []) =>
+const run_query = async (query, params = []) =>
 {
-	return new Promise((resolve, reject) =>
+	global.logger.debug({ query, params }, __filename);
+	try
 	{
-		db.run(query, params, function (err)
-		{
-			if (err)
-			{
-				global.logger.error(`Error running query: ${query}`, err.message);
-				reject(err);
-			}
-			else
-			{
-				resolve(this.lastID || null);
-			}
-		});
-	});
+		const result = await db.run(query, params);
+		global.logger.info({ result }, __filename);
+		return result.lastID || null;
+	}
+	catch (err)
+	{
+		global.logger.error(`Error running query: ${query}`, err.message, __filename);
+		throw err;
+	}
 };
 
-/**
- * Get a single row from the database
- * @param {string} sql - The SQL query to execute
- * @param {array} [params] - Optional parameters for the query
- * @returns {Promise<any>} - Resolves with the single row or rejects with error
- */
-const get_row = (sql, params = []) =>
+// Get a single row from the database
+const get_row = async (sql, params = []) =>
 {
-	return new Promise((resolve, reject) =>
+	try
 	{
-		db.get(sql, params, (err, row) =>
-		{
-			if (err)
-			{
-				global.logger.error('Error fetching row from the database:', err);
-				return reject(err);
-			}
-			resolve(row);
-		});
-	});
+		return await db.get(sql, params);
+	}
+	catch (err)
+	{
+		global.logger.error('Error fetching row from the database:', err.message, __filename);
+		throw err;
+	}
 };
 
-/**
- * Get all rows from the database
- * @param {string} sql - The SQL query to execute
- * @param {array} [params] - Optional parameters for the query
- * @returns {Promise<any[]>} - Resolves with an array of rows or rejects with error
- */
-const get_all_rows = (sql, params = []) =>
+// Get all rows from the database
+const get_all_rows = async (sql, params = []) =>
 {
-	return new Promise((resolve, reject) =>
+	try
 	{
-		db.all(sql, params, (err, rows) =>
-		{
-			if (err)
-			{
-				global.logger.error('Error fetching rows from the database:', err);
-				return reject(err);
-			}
-			resolve(rows);
-		});
-	});
+		return await db.all(sql, params);
+	}
+	catch (err)
+	{
+		global.logger.error('Error fetching rows from the database:', err.message, __filename);
+		throw err;
+	}
 };
 
-/**
- * Close the database connection
- */
-const close_db = () =>
+// Close the database connection
+const close_db = async () =>
 {
-	return new Promise((resolve, reject) =>
+	if (db)
 	{
-		if (db)
+		try
 		{
-			db.close((err) =>
-			{
-				if (err)
-				{
-					global.logger.error('Error closing the SQLite database:', err);
-					return reject(err);
-				}
-				global.logger.info('Database connection closed.');
-				resolve();
-			});
+			await db.close();
+			global.logger.info('Database connection closed.', __filename);
 		}
-		else
+		catch (err)
 		{
-			resolve();
+			global.logger.error('Error closing the SQLite database:', err.message, __filename);
+			throw err;
 		}
-	});
+	}
 };
 
 module.exports = {
-	db,
+	initialize_db,
+	db_created,
 	run_query,
 	get_row,
 	get_all_rows,

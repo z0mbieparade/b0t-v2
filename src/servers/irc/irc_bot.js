@@ -40,7 +40,7 @@ class IRCBot extends EventEmitter
 	{
 		if (this.retry_count >= this.config.max_retries)
 		{
-			global.logger.error(`Failed to connect to ${this.config.server} after ${this.retry_count} attempts. Shutting down.`);
+			global.logger.error(`Failed to connect to ${this.config.server} after ${this.retry_count} attempts. Shutting down.`, __filename);
 			this.emit('shutdown'); // Emit shutdown event for this specific server
 			return;
 		}
@@ -102,31 +102,31 @@ class IRCBot extends EventEmitter
 
 				switch (command)
 				{
-				case 'PRIVMSG':
-					const sender = this.extract_nick(message_parts[0]);
-					const channel = message_parts[2];
-					const message = message_parts.slice(3).join(' ').substring(1);
-					this.emit('message', sender, channel, message);
-					break;
-				case 'JOIN':
-					const nick = this.extract_nick(message_parts[0]);
-					const join_channel = message_parts[2].substring(1);
-					this.emit('join', nick, join_channel);
-					break;
-				case 'PART':
-					const part_nick = this.extract_nick(message_parts[0]);
-					const part_channel = message_parts[2];
-					this.emit('part', part_nick, part_channel);
-					break;
-				case 'NICK':
-					const old_nick = this.extract_nick(message_parts[0]);
-					const new_nick = message_parts[2].substring(1);
-					this.emit('nick', old_nick, new_nick);
-					break;
-				case 'QUIT':
-					const quit_nick = this.extract_nick(message_parts[0]);
-					this.emit('quit', quit_nick);
-					break;
+					case 'PRIVMSG':
+						const sender = this.extract_nick(message_parts[0]);
+						const channel = message_parts[2];
+						const message = message_parts.slice(3).join(' ').substring(1);
+						this.emit('message', sender, channel, message);
+						break;
+					case 'JOIN':
+						const nick = this.extract_nick(message_parts[0]);
+						const join_channel = message_parts[2].substring(1);
+						this.emit('join', nick, join_channel);
+						break;
+					case 'PART':
+						const part_nick = this.extract_nick(message_parts[0]);
+						const part_channel = message_parts[2];
+						this.emit('part', part_nick, part_channel);
+						break;
+					case 'NICK':
+						const old_nick = this.extract_nick(message_parts[0]);
+						const new_nick = message_parts[2].substring(1);
+						this.emit('nick', old_nick, new_nick);
+						break;
+					case 'QUIT':
+						const quit_nick = this.extract_nick(message_parts[0]);
+						this.emit('quit', quit_nick);
+						break;
 				}
 			}
 		});
@@ -148,11 +148,11 @@ class IRCBot extends EventEmitter
 	// Handle connection errors
 	handle_error (err)
 	{
-		global.logger.error(`IRC bot error on ${this.config.server}:`, err.message);
+		global.logger.error(`IRC bot error on ${this.config.server}:`, err.message, __filename);
 		this.retry_count++; // Increment retry count on error
 		if (this.retry_count >= this.config.max_retries)
 		{
-			global.logger.error(`Failed to connect after ${this.retry_count} attempts. Shutting down.`);
+			global.logger.error(`Failed to connect after ${this.retry_count} attempts. Shutting down.`, __filename);
 			this.emit('shutdown'); // Emit shutdown event for this specific server
 			return;
 		}
@@ -179,7 +179,7 @@ class IRCBot extends EventEmitter
 		}
 		else
 		{
-			global.logger.error('Cannot send command, not connected.');
+			global.logger.error('Cannot send command, not connected.', __filename);
 		}
 	}
 

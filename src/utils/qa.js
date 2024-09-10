@@ -28,16 +28,16 @@ const process_input = (input, type, regex, options) =>
 {
 	switch (type)
 	{
-	case 'boolean':
-		if(input === true) return true;
-		if(input === false) return false;
-		return ['yes', 'y', 'true'].includes(input.toLowerCase());
-	case 'number':
-		return validate_input(input, regex) ? parseInt(input, 10) : NaN;
-	case 'array':
-		return input.split(',').map(item => item.trim());
-	default:
-		return validate_input(input, regex, options) ? input : null;
+		case 'boolean':
+			if(input === true) return true;
+			if(input === false) return false;
+			return ['yes', 'y', 'true'].includes(input.toLowerCase());
+		case 'number':
+			return validate_input(input, regex) ? parseInt(input, 10) : NaN;
+		case 'array':
+			return input.split(',').map(item => item.trim());
+		default:
+			return validate_input(input, regex, options) ? input : null;
 	}
 };
 
@@ -76,6 +76,9 @@ const ask_single_question = (question, current_config, key, after_question_callb
 			{
 				current_config[key] = processed_answer;
 
+				console.log(`\x1b[32m${processed_answer}\x1b[0m`);
+				console.log('');
+
 				if (should_pause(question.pause_after, processed_answer) && after_question_callbacks[key])
 				{
 					const callback_result = after_question_callbacks[key](processed_answer, current_config);
@@ -84,7 +87,7 @@ const ask_single_question = (question, current_config, key, after_question_callb
 					{
 						callback_result.then(resolve).catch(err =>
 						{
-							global.logger.error(`Error in after_question_callbacks for ${key}:`, err);
+							global.logger.error(`Error in after_question_callbacks for ${key}:`, err, __filename);
 							resolve();
 						});
 					}
@@ -100,7 +103,7 @@ const ask_single_question = (question, current_config, key, after_question_callb
 			}
 			else
 			{
-				global.logger.warn(`Invalid input for ${key}: ${final_answer}`);
+				global.logger.warn(`Invalid input for ${key}: ${final_answer}`, __filename);
 				ask_single_question(question, current_config, key, after_question_callbacks).then(resolve);
 			}
 		});
@@ -126,7 +129,7 @@ const ask_repeatable_question = (question, current_config, key, after_question_c
 			{
 				if (after_question_callbacks && after_question_callbacks[key])
 				{
-					await after_question_callbacks[key](processed_answer, current_config);  // Await callback handling
+					await after_question_callbacks[key](entry, current_config);  // Await callback handling
 				}
 			}
 
@@ -137,10 +140,18 @@ const ask_repeatable_question = (question, current_config, key, after_question_c
 
 			if (['yes', 'y'].includes(answer.toLowerCase()))
 			{
+
+				console.log('\x1b[32myes\x1b[0m');
+				console.log('');
+
 				return ask_main_question({});  // Recursively ask more entries
 			}
 			else
 			{
+
+				console.log('\x1b[32mno\x1b[0m');
+				console.log('');
+
 				results.push(entry);
 				current_config[key] = results;
 				return;
@@ -196,20 +207,18 @@ const ask_questions = (questions, current_config, after_question_callbacks) =>
 };
 
 // Function to run the setup based on a question set
-const setup_config = (questions_path, after_question_callbacks = {}, setup_done_callback) =>
+const setup_config = (questions_path, after_question_callbacks = {}) =>
 {
 	const questions = JSON.parse(fs.readFileSync(questions_path, 'utf-8'));
 	const config = {};
 
-	ask_questions(questions, config, after_question_callbacks)
+	return ask_questions(questions, config, after_question_callbacks)
 		.then(() =>
 		{
 			rl.close();
-			setup_done_callback(config);
+			return config;
 		});
 };
-
-
 
 // Export the setup function
 module.exports = setup_config;

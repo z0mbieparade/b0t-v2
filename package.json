@@ -16,12 +16,16 @@
     "net": "^1.0.2",
     "path": "^0.12.7",
     "sqlite3": "^5.1.2",
+    "sqlite": "^5.1.1",
     "tls": "^0.0.1",
     "winston": "^3.14.2",
     "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
-    "eslint": "^9.9.1",
+    "@eslint/js": "^9.10.0",
+    "eslint": "^9.10.0",
+    "eslint-plugin-prefer-snakecase": "^1.8.4",
+    "globals": "^15.9.0",
     "nodemon": "^3.1.4"
   },
   "engines": {

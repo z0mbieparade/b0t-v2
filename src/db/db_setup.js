@@ -10,12 +10,12 @@ This script runs on b0t.js startup if no db.sql file is found.
 */
 const path = require('path');
 const setup_config = require('../utils/qa');
+const db = require('./db');
 const questions_path = path.join(__dirname, 'db_questions.json');
 const {
 	migrate_nicks,
 	migrate_bugs_requests,
 	migrate_speak,
-	migrate_reminders,
 	migrate_kinkshame,
 	migrate_infobot,
 	migrate_topics,
@@ -26,19 +26,56 @@ const {
 
 // Handle the migrations directly inside after_question_callbacks
 const after_question_callbacks = {
+	servers: async (answer, current_config, i) =>
+	{
+		if(answer)
+		{
+			try
+			{
+				global.logger.info('Adding server', answer, __filename);
+
+				if(answer.server_type === 'irc')
+				{
+					await db.run_query(`
+						INSERT INTO servers (type, server, port, ssl, nickname) 
+						VALUES (?, ?, ?, ?, ?)`,
+					['irc', answer.server, answer.port, answer.ssl, answer.nickname]
+					);
+				}
+				else if(answer.server_type === 'discord')
+				{
+					await db.run_query(`
+						INSERT INTO servers (type, server, token) 
+						VALUES (?, ?, ?)`,
+					['discord', answer.server, server.token]
+					);
+				}
+
+				global.logger.info(`Server "${answer.server}" of type "${answer.server_type}" inserted into the database.`, __filename);
+			}
+			catch (err)
+			{
+				global.logger.error(`Error inserting server "${answer.server}": ${err.message}`, __filename);
+			}
+		}
+		else
+		{
+			return Promise.resolve();
+		}
+	},
 	migrate_all: async (answer, current_config) =>
 	{
 		if (answer)
 		{
-			global.logger.info('Starting migration for all tables...');
+			global.logger.info('Starting migration for all tables...', __filename);
 			try
 			{
 				await migrate_all_tables(current_config);
-				global.logger.info('All migrations completed successfully.');
+				global.logger.info('All migrations completed successfully.', __filename);
 			}
 			catch (err)
 			{
-				global.logger.error('Error during migration:', err);
+				global.logger.error('Error during migration:', err, __filename);
 			}
 		}
 		else
@@ -53,11 +90,11 @@ const after_question_callbacks = {
 			try
 			{
 				await migrate_nicks(current_config);
-				global.logger.info('Nicks migration completed successfully.');
+				global.logger.info('Nicks migration completed successfully.', __filename);
 			}
 			catch (err)
 			{
-				global.logger.error('Error during nicks migration:', err);
+				global.logger.error('Error during nicks migration:', err, __filename);
 			}
 		}
 		else
@@ -72,11 +109,11 @@ const after_question_callbacks = {
 			try
 			{
 				await migrate_bugs_requests(current_config);
-				global.logger.info('Bugs and requests migration completed successfully.');
+				global.logger.info('Bugs and requests migration completed successfully.', __filename);
 			}
 			catch (err)
 			{
-				global.logger.error('Error during bugs/requests migration:', err);
+				global.logger.error('Error during bugs/requests migration:', err, __filename);
 			}
 		}
 		else
@@ -90,13 +127,6 @@ const after_question_callbacks = {
 		if (answer)
 		{
 			await migrate_speak(current_config);
-		}
-	},
-	migrate_reminders: async (answer, current_config) =>
-	{
-		if (answer)
-		{
-			await migrate_reminders(current_config);
 		}
 	},
 	migrate_kinkshame: async (answer, current_config) =>
@@ -136,23 +166,22 @@ const after_question_callbacks = {
 	}
 };
 
-const setup_done_callback = () =>
-{
-	global.logger.debug('Setup Complete!');
-};
-
 // Main database setup function with async/await
 const setup_db = async () =>
 {
+	let final_config = {};
+
 	try
 	{
-		const final_config = await setup_config(questions_path, after_question_callbacks, setup_done_callback);
-		global.logger.debug('Config:', final_config);
+		final_config = await setup_config(questions_path, after_question_callbacks);
+		global.logger.debug('Config:', final_config, __filename);
 	}
 	catch (err)
 	{
-		global.logger.error('Error during setup:', err);
+		global.logger.error('Error during setup:', err, __filename);
 	}
+
+	return final_config;
 };
 
 module.exports = setup_db;

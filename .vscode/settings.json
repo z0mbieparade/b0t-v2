@@ -1,0 +1,13 @@
+{
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+    },
+    "eslint.validate": [
+        "javascript"
+    ],
+    "files.exclude": {
+        "**/.git": false
+    },
+    "eslint.format.enable": true,
+    "eslint.run": "onSave",
+}
